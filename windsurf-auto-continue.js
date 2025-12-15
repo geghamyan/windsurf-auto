@@ -1,1 +1,0 @@
-/home/tigran/src/notehub3/scripts/windsurf-auto-continue.js
