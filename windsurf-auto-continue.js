@@ -5,9 +5,11 @@
  *  - Periodically scans the Windsurf UI for specific action buttons.
  *  - Auto-clicks any matching, fully visible, and enabled buttons (no synthetic key presses).
  *  - Currently supports both the “Continue” button (text starts with “continue”) and the “RunAlt+⏎” button shown in the screenshot.
+ *  - Hides specified models from the model selector dropdown (configured via HIDDEN_MODELS array).
  *
  * How to extend it:
  *  - Add entries to BUTTON_TARGETS below; each entry defines how to detect a new button via the predicate.
+ *  - Add model names to HIDDEN_MODELS to hide them from the model selector.
  *  - Keep selectors consistent unless Windsurf UI changes (BTN_SELECTORS).
  *  - Make sure to reuse/adjust the visibility checks in `evaluateButton` if new UI widgets behave differently.
  */
@@ -33,6 +35,10 @@
     const SIDEBAR_SELECTOR = null;
     const COOLDOWN_MS = 3000;
     const CHECK_MS = 1000;
+    const HIDDEN_MODELS = [
+        'Claude Opus 4.1 (Thinking)',
+        'Claude Sonnet 4.5 (1M)',
+    ];
     // --- End Config ---
 
     const normalizeText = (rawText) => (rawText ?? "").replace(/[\s\u00A0]+/g, ' ').trim().toLowerCase();
@@ -101,6 +107,20 @@
             if (allPotentialButtons.length > 0) { // Only log this if we found some candidates but none passed all checks
                  // console.log(`${SCRIPT_NAME}: No suitable button to click this interval.`); // Optional: can be verbose
             }
+        }
+
+        // Hide models from the model selector
+        if (HIDDEN_MODELS.length > 0) {
+            document.querySelectorAll('p').forEach(p => {
+                const text = p.textContent?.trim();
+                if (text && HIDDEN_MODELS.includes(text)) {
+                    const btn = p.closest('button[data-kb-navigate="true"]') || p.closest('button');
+                    if (btn && btn.style.display !== 'none') {
+                        btn.style.display = 'none';
+                        console.log(`${SCRIPT_NAME}: Hid model "${text}"`);
+                    }
+                }
+            });
         }
     };
 
