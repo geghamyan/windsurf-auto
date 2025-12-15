@@ -17,7 +17,7 @@
     let intervalId = null, lastClick = 0;
 
     // --- Config ---
-    const BTN_SELECTORS = 'span[class*="bg-ide-button-secondary-background"]';
+    const BTN_SELECTORS = 'span[class*="bg-ide-button-secondary-background"], button[class*="bg-ide-button-background"]';
     const BUTTON_TARGETS = [
         {
             id: 'continue',
