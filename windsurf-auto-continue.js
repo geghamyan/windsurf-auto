@@ -71,7 +71,7 @@
         'GPT-5 (high reasoning)': false,
         'GPT-5 (medium reasoning)': false,
         'GPT-5 (low reasoning)': false,
-        'GPT-5-Codex': true,
+        'GPT-5-Codex': false,
         'GPT-5.1 (high reasoning)': true,
         'GPT-5.1 (high, priority)': true,
         'GPT-5.1 (medium reasoning)': true,
