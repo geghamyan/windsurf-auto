@@ -16,7 +16,16 @@
 //
 (() => {
     const SCRIPT_NAME = 'Windsurf Auto Button Presser';
-    let intervalId = null, lastClick = 0;
+    const STATE_KEY = '__windsurfAutoButtonPresser__';
+    window[STATE_KEY] ||= { intervalId: null };
+
+    if (window[STATE_KEY].intervalId) {
+        clearInterval(window[STATE_KEY].intervalId);
+        window[STATE_KEY].intervalId = null;
+        console.log(`${SCRIPT_NAME}: Cleared previous interval.`);
+    }
+
+    let lastClick = 0;
     let autoWebRequestsUnlocked = false;
     let autoExecutionUnlocked = false;
 
@@ -221,22 +230,16 @@
     };
 
     window.stopWindsurfAutoPressContinue_v13_2 = () => {
-        if (intervalId) {
-            clearInterval(intervalId);
-            console.log(`${SCRIPT_NAME}: Stopped (ID: ${intervalId}).`);
-            intervalId = null;
+        if (window[STATE_KEY].intervalId) {
+            clearInterval(window[STATE_KEY].intervalId);
+            window[STATE_KEY].intervalId = null;
+            console.log(`${SCRIPT_NAME}: Stopped.`);
         } else {
             console.log(`${SCRIPT_NAME}: Not running or already stopped.`);
         }
     };
 
-    if (window.stopWindsurfAutoPressContinue_v13_2.intervalId) { // Check for a globally stored ID from a previous run
-        clearInterval(window.stopWindsurfAutoPressContinue_v13_2.intervalId);
-        console.log(`${SCRIPT_NAME}: Cleared pre-existing interval.`);
-    }
-
-    intervalId = setInterval(clickBtn, CHECK_MS);
-    window.stopWindsurfAutoPressContinue_v13_2.intervalId = intervalId; // Store globally for easier clearing if script is re-run
-    console.log(`${SCRIPT_NAME}: Started (ID: ${intervalId}). Checks every ${CHECK_MS/1000}s. To stop: window.stopWindsurfAutoPressContinue_v13_2()`);
+    window[STATE_KEY].intervalId = setInterval(clickBtn, CHECK_MS);
+    console.log(`${SCRIPT_NAME}: Started (ID: ${window[STATE_KEY].intervalId}). Checks every ${CHECK_MS/1000}s. To stop: window.stopWindsurfAutoPressContinue_v13_2()`);
     clickBtn(); // Initial check
 })();
