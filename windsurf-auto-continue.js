@@ -17,8 +17,13 @@
 (() => {
     const SCRIPT_NAME = 'Windsurf Auto Button Presser';
     let intervalId = null, lastClick = 0;
+    let autoWebRequestsUnlocked = false;
+    let autoExecutionUnlocked = false;
 
     // --- Config ---
+    const ENABLE_AUTO_WEB_REQUESTS = false; // Set to false to disable unlocking Auto Web Requests dropdown
+    const ENABLE_AUTO_EXECUTION = false; // Set to false to disable unlocking Auto Execution dropdown
+
     const BTN_SELECTORS = 'span[class*="bg-ide-button-secondary-background"], button[class*="bg-ide-button-background"]';
     const BUTTON_TARGETS = [
         {
@@ -106,6 +111,40 @@
         } else {
             if (allPotentialButtons.length > 0) { // Only log this if we found some candidates but none passed all checks
                  // console.log(`${SCRIPT_NAME}: No suitable button to click this interval.`); // Optional: can be verbose
+            }
+        }
+
+        // Enable Auto Web Requests dropdown options (remove disabled class)
+        if (!autoWebRequestsUnlocked && ENABLE_AUTO_WEB_REQUESTS) {
+            const settingRows = document.querySelectorAll('.setting-row');
+            for (const row of settingRows) {
+                const label = row.querySelector('.setting-label span');
+                if (label && label.textContent?.trim() === 'Auto Web Requests') {
+                    const disabledOptions = row.querySelectorAll('.setting-dropdown-option.disabled');
+                    if (disabledOptions.length > 0) {
+                        disabledOptions.forEach(opt => opt.classList.remove('disabled'));
+                        autoWebRequestsUnlocked = true;
+                        console.log(`${SCRIPT_NAME}: Unlocked Auto Web Requests dropdown options.`);
+                    }
+                    break;
+                }
+            }
+        }
+
+        // Enable Auto Execution dropdown options (remove disabled class)
+        if (!autoExecutionUnlocked && ENABLE_AUTO_EXECUTION) {
+            const settingRows = document.querySelectorAll('.setting-row');
+            for (const row of settingRows) {
+                const label = row.querySelector('.setting-label span');
+                if (label && label.textContent?.trim() === 'Auto Execution') {
+                    const disabledOptions = row.querySelectorAll('.setting-dropdown-option.disabled');
+                    if (disabledOptions.length > 0) {
+                        disabledOptions.forEach(opt => opt.classList.remove('disabled'));
+                        autoExecutionUnlocked = true;
+                        console.log(`${SCRIPT_NAME}: Unlocked Auto Execution dropdown options.`);
+                    }
+                    break;
+                }
             }
         }
 
