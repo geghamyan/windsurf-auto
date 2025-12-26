@@ -23,6 +23,7 @@
     // --- Config ---
     const ENABLE_AUTO_WEB_REQUESTS = false; // Set to false to disable unlocking Auto Web Requests dropdown
     const ENABLE_AUTO_EXECUTION = false; // Set to false to disable unlocking Auto Execution dropdown
+    const ENABLE_MODEL_VISIBILITY = true; // Set to false to disable model visibility filtering
 
     const BTN_SELECTORS = 'span[class*="bg-ide-button-secondary-background"], button[class*="bg-ide-button-background"]';
     const BUTTON_TARGETS = [
@@ -40,10 +41,60 @@
     const SIDEBAR_SELECTOR = null;
     const COOLDOWN_MS = 3000;
     const CHECK_MS = 1000;
-    const HIDDEN_MODELS = [
-        'Claude Opus 4.1 (Thinking)',
-        'Claude Sonnet 4.5 (1M)',
-    ];
+    const MODEL_VISIBILITY_CONFIG = {
+        'Claude 3.5 Sonnet': false,
+        'Claude 3.7 Sonnet': true,
+        'Claude 3.7 Sonnet (Thinking)': true,
+        'Claude Haiku 4.5': true,
+        'Claude Opus 4.1 (Thinking)': false,
+        'Claude Opus 4.5': true,
+        'Claude Opus 4.5 (Thinking)': true,
+        'Claude Sonnet 4': false,
+        'Claude Sonnet 4 (Thinking)': false,
+        'Claude Sonnet 4.5': true,
+        'Claude Sonnet 4.5 (1M)': false,
+        'Claude Sonnet 4.5 Thinking': true,
+        'Gemini 2.5 Pro': false,
+        'Gemini 3 Pro (high)': false,
+        'Gemini 3 Pro (low)': false,
+        'GPT-4.1': false,
+        'GPT-4o': false,
+        'GPT-5 (high reasoning)': true,
+        'GPT-5 (medium reasoning)': true,
+        'GPT-5 (low reasoning)': true,
+        'GPT-5-Codex': true,
+        'GPT-5.1 (high reasoning)': true,
+        'GPT-5.1 (high, priority)': true,
+        'GPT-5.1 (medium reasoning)': true,
+        'GPT-5.1 (medium, priority)': true,
+        'GPT-5.1 (low reasoning)': true,
+        'GPT-5.1 (low, priority)': true,
+        'GPT-5.1 (no reasoning)': true,
+        'GPT-5.1 (no reasoning, priority)': true,
+        'GPT-5.1-Codex': true,
+        'GPT-5.1-Codex Low': true,
+        'GPT-5.1-Codex Max High': true,
+        'GPT-5.1-Codex Max Medium': true,
+        'GPT-5.1-Codex Max Low': true,
+        'GPT-5.1-Codex-Mini': true,
+        'GPT-5.1-Codex-Mini Low': true,
+        'GPT-5.2 High Reasoning': true,
+        'GPT-5.2 High Reasoning Fast': true,
+        'GPT-5.2 Medium Reasoning': true,
+        'GPT-5.2 Medium Reasoning Fast': true,
+        'GPT-5.2 Low Reasoning': true,
+        'GPT-5.2 Low Reasoning Fast': true,
+        'GPT-5.2 No Reasoning': true,
+        'GPT-5.2 No Reasoning Fast': true,
+        'GPT-5.2 X-High Reasoning': true,
+        'GPT-5.2 X-High Reasoning Fast': true,
+        'GPT-OSS 120B (Medium)': true,
+        'Grok Code Fast 1': true,
+        'o3': true,
+        'o3 (high reasoning)': true,
+        'SWE-1': true,
+        'SWE-1.5': true,
+    };
     // --- End Config ---
 
     const normalizeText = (rawText) => (rawText ?? "").replace(/[\s\u00A0]+/g, ' ').trim().toLowerCase();
@@ -148,15 +199,21 @@
             }
         }
 
-        // Hide models from the model selector
-        if (HIDDEN_MODELS.length > 0) {
+        // Control model visibility based on MODEL_VISIBILITY_CONFIG
+        if (ENABLE_MODEL_VISIBILITY) {
             document.querySelectorAll('p').forEach(p => {
                 const text = p.textContent?.trim();
-                if (text && HIDDEN_MODELS.includes(text)) {
+                if (text && text in MODEL_VISIBILITY_CONFIG) {
+                    const shouldBeVisible = MODEL_VISIBILITY_CONFIG[text];
                     const btn = p.closest('button[data-kb-navigate="true"]') || p.closest('button');
-                    if (btn && btn.style.display !== 'none') {
-                        btn.style.display = 'none';
-                        console.log(`${SCRIPT_NAME}: Hid model "${text}"`);
+                    if (btn) {
+                        if (!shouldBeVisible && btn.style.display !== 'none') {
+                            btn.style.display = 'none';
+                            console.log(`${SCRIPT_NAME}: Hid model "${text}"`);
+                        } else if (shouldBeVisible && btn.style.display === 'none') {
+                            btn.style.display = '';
+                            console.log(`${SCRIPT_NAME}: Showed model "${text}"`);
+                        }
                     }
                 }
             });
