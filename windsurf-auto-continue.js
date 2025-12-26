@@ -4,14 +4,24 @@
  * What it does:
  *  - Periodically scans the Windsurf UI for specific action buttons.
  *  - Auto-clicks any matching, fully visible, and enabled buttons (no synthetic key presses).
- *  - Currently supports both the “Continue” button (text starts with “continue”) and the “RunAlt+⏎” button shown in the screenshot.
- *  - Hides specified models from the model selector dropdown (configured via HIDDEN_MODELS array).
+ *  - Currently supports both the "Continue" button (text starts with "continue") and the "RunAlt+⏎" run button.
+ *  - Can unlock disabled options in the "Auto Web Requests" and "Auto Execution" settings (see ENABLE_AUTO_WEB_REQUESTS / ENABLE_AUTO_EXECUTION).
+ *  - Optionally hides/shows specific models in the model selector based on MODEL_VISIBILITY_CONFIG (toggled via ENABLE_MODEL_VISIBILITY).
  *
- * How to extend it:
- *  - Add entries to BUTTON_TARGETS below; each entry defines how to detect a new button via the predicate.
- *  - Add model names to HIDDEN_MODELS to hide them from the model selector.
- *  - Keep selectors consistent unless Windsurf UI changes (BTN_SELECTORS).
- *  - Make sure to reuse/adjust the visibility checks in `evaluateButton` if new UI widgets behave differently.
+ * Configuration (see "// --- Config ---" below):
+ *  - BUTTON_TARGETS / BTN_SELECTORS: define which buttons are considered for auto-click.
+ *  - COOLDOWN_MS / CHECK_MS: control how often clicks are attempted and the cooldown between clicks.
+ *  - ENABLE_AUTO_WEB_REQUESTS / ENABLE_AUTO_EXECUTION: control whether dropdown options are force-unlocked.
+ *  - ENABLE_MODEL_VISIBILITY / MODEL_VISIBILITY_CONFIG: control which models are shown or hidden in the selector.
+ *
+ * Usage:
+ *  - Paste this script into the Windsurf desktop app web UI (e.g., DevTools console) to start it.
+ *  - To stop it, call: window.stopWindsurfAutoPressContinue_v13_2().
+ *
+ * Maintenance notes:
+ *  - If the Windsurf UI or CSS classes change, review BTN_SELECTORS and the settings row selectors.
+ *  - When adding new button behaviors, prefer extending BUTTON_TARGETS and reusing evaluateButton's visibility checks.
+ *  - For project-wide conventions, see openspec/project.md.
  */
 //
 (() => {
