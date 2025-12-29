@@ -5,14 +5,25 @@
  *  - Periodically scans the Windsurf UI for specific action buttons.
  *  - Auto-clicks any matching, fully visible, and enabled buttons (no synthetic key presses).
  *  - Currently supports both the "Continue" button (text starts with "continue") and the "RunAlt+⏎" run button.
- *  - Can unlock disabled options in the "Auto Web Requests" and "Auto Execution" settings (see ENABLE_AUTO_WEB_REQUESTS / ENABLE_AUTO_EXECUTION).
- *  - Optionally hides/shows specific models in the model selector based on MODEL_VISIBILITY_CONFIG (toggled via ENABLE_MODEL_VISIBILITY).
+ *  - Can unlock disabled options in the "Auto Web Requests" and "Auto Execution" settings.
+ *  - Optionally hides/shows specific models in the model selector based on MODEL_VISIBILITY_CONFIG.
  *
  * Configuration (see "// --- Config ---" below):
- *  - BUTTON_TARGETS / BTN_SELECTORS: define which buttons are considered for auto-click.
- *  - COOLDOWN_MS / CHECK_MS: control how often clicks are attempted and the cooldown between clicks.
- *  - ENABLE_AUTO_WEB_REQUESTS / ENABLE_AUTO_EXECUTION: control whether dropdown options are force-unlocked.
- *  - ENABLE_MODEL_VISIBILITY / MODEL_VISIBILITY_CONFIG: control which models are shown or hidden in the selector.
+ *  - Feature: enum-like object defining feature names (ModelVisibility, Clicker, Settings, etc.)
+ *  - LogLevel: enum-like object defining log levels (Error, Warn, Info, Debug, Trace)
+ *  - FEATURE_CONFIG: per-feature configuration with { enabled, level } for each feature
+ *    - Feature.ModelVisibility: controls model dropdown filtering
+ *    - Feature.AutoWebRequestsUnlock: controls unlocking Auto Web Requests dropdown options
+ *    - Feature.AutoExecutionUnlock: controls unlocking Auto Execution dropdown options
+ *  - LOG_LEVEL: global default log level (fallback when feature not in FEATURE_CONFIG)
+ *  - BUTTON_TARGETS / BTN_SELECTORS: define which buttons are considered for auto-click
+ *  - COOLDOWN_MS / CHECK_MS: control how often clicks are attempted and the cooldown between clicks
+ *  - MODEL_VISIBILITY_CONFIG: control which models are shown or hidden in the selector
+ *
+ * Logging:
+ *  - Per-feature log levels allow debugging specific features without noise from others
+ *  - Set FEATURE_CONFIG[Feature.X].level to LogLevel.Debug for verbose output
+ *  - Set FEATURE_CONFIG[Feature.X].enabled to false to disable a feature entirely
  *
  * Usage:
  *  - Paste this script into the Windsurf desktop app web UI (e.g., DevTools console) to start it.
@@ -73,28 +84,65 @@
     cleanupModelVisibilityAll();
 
     // --- Config ---
-    const LOG_LEVEL = 'debug';
-    const ENABLE_AUTO_WEB_REQUESTS = false; // Set to false to disable unlocking Auto Web Requests dropdown
-    const ENABLE_AUTO_EXECUTION = false; // Set to false to disable unlocking Auto Execution dropdown
-    const ENABLE_MODEL_VISIBILITY = true; // Set to false to disable model visibility filtering
-    const DEBUG_MODEL_VISIBILITY = true; // Set to true to log detailed model dropdown + filtering diagnostics
+    const Feature = Object.freeze({
+        General: 'general',
+        Clicker: 'clicker',
+        Settings: 'settings',
+        Lifecycle: 'lifecycle',
+        ModelVisibility: 'modelVisibility',
+        AutoWebRequestsUnlock: 'autoWebRequestsUnlock',
+        AutoExecutionUnlock: 'autoExecutionUnlock',
+    });
+
+    const LogLevel = Object.freeze({
+        Error: 'error',
+        Warn: 'warn',
+        Info: 'info',
+        Debug: 'debug',
+        Trace: 'trace',
+    });
+
+    const LOG_LEVEL = LogLevel.Info;
+    const FEATURE_CONFIG = {
+        [Feature.ModelVisibility]: { enabled: true, level: LogLevel.Debug },
+        [Feature.AutoWebRequestsUnlock]: { enabled: false, level: LogLevel.Info },
+        [Feature.AutoExecutionUnlock]: { enabled: false, level: LogLevel.Info },
+    };
 
     const LOG_LEVELS = {
-        error: 0,
-        warn: 1,
-        info: 2,
-        debug: 3,
-        trace: 4,
+        [LogLevel.Error]: 0,
+        [LogLevel.Warn]: 1,
+        [LogLevel.Info]: 2,
+        [LogLevel.Debug]: 3,
+        [LogLevel.Trace]: 4,
     };
 
-    const log = (level, ...args) => {
-        const current = LOG_LEVELS[LOG_LEVEL] ?? LOG_LEVELS.info;
-        const target = LOG_LEVELS[level] ?? LOG_LEVELS.info;
+    const getFeatureLogLevel = (feature) => {
+        if (!feature) return LOG_LEVEL;
+        const cfg = FEATURE_CONFIG?.[feature];
+        if (cfg?.enabled === false) return null;
+        return cfg?.level ?? LOG_LEVEL;
+    };
+
+    const featureEnabled = (feature) => {
+        const cfg = FEATURE_CONFIG?.[feature];
+        if (!cfg) return true;
+        return cfg.enabled !== false;
+    };
+
+    const logFeature = (feature, level, ...args) => {
+        const configuredLevel = getFeatureLogLevel(feature);
+        if (configuredLevel == null) return;
+        const current = LOG_LEVELS[configuredLevel] ?? LOG_LEVELS[LogLevel.Info];
+        const target = LOG_LEVELS[level] ?? LOG_LEVELS[LogLevel.Info];
         if (target > current) return;
 
-        const method = level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'log';
+        const method = level === LogLevel.Error ? 'error' : level === LogLevel.Warn ? 'warn' : 'log';
         console[method](`${SCRIPT_NAME}:`, ...args);
     };
+
+    // Backwards-compatible default logger (uses the global/default feature).
+    const log = (level, ...args) => logFeature(Feature.General, level, ...args);
 
     const BTN_SELECTORS = 'span[class*="bg-ide-button-secondary-background"], button[class*="bg-ide-button-background"]';
     const BUTTON_TARGETS = [
@@ -171,12 +219,12 @@
     const normalizeText = (rawText) => (rawText ?? "").replace(/[\s\u00A0]+/g, ' ').trim().toLowerCase();
 
     const mvLog = (...args) => {
-        if (!ENABLE_MODEL_VISIBILITY || !DEBUG_MODEL_VISIBILITY) return;
-        log('debug', '[ModelVisibility]', ...args);
+        if (!featureEnabled(Feature.ModelVisibility)) return;
+        logFeature(Feature.ModelVisibility, LogLevel.Debug, '[ModelVisibility]', ...args);
     };
 
     const applyModelVisibilityFiltering = (container) => {
-        if (!ENABLE_MODEL_VISIBILITY) return;
+        if (!featureEnabled(Feature.ModelVisibility)) return;
 
         const spans = container.querySelectorAll('span.truncate');
         let hiddenCount = 0;
@@ -203,7 +251,8 @@
 
         spans.forEach(span => {
             const text = span.textContent?.trim();
-            if (DEBUG_MODEL_VISIBILITY && sampleTexts.length < 15 && text) sampleTexts.push(text);
+            if (!featureEnabled('modelVisibility')) return;
+            if (sampleTexts.length < 15 && text) sampleTexts.push(text);
             if (text && text in MODEL_VISIBILITY_CONFIG) {
                 configuredModelSpanCount++;
                 const shouldBeVisible = MODEL_VISIBILITY_CONFIG[text];
@@ -230,7 +279,7 @@
             }
         });
 
-        if (DEBUG_MODEL_VISIBILITY && sampleTexts.length > 0) {
+        if (sampleTexts.length > 0) {
             mvLog('Model text sample (first 15)', sampleTexts);
         }
 
@@ -242,7 +291,7 @@
         });
 
         if (hiddenCount > 0 || shownCount > 0) {
-            log('info', `Model visibility applied (hidden: ${hiddenCount}, shown: ${shownCount})`);
+            logFeature(Feature.ModelVisibility, LogLevel.Info, `Model visibility applied (hidden: ${hiddenCount}, shown: ${shownCount})`);
         }
     };
 
@@ -266,7 +315,7 @@
     };
 
     const setupModelDropdownObserver = () => {
-        if (!ENABLE_MODEL_VISIBILITY) return;
+        if (!featureEnabled(Feature.ModelVisibility)) return;
 
         const mv = window[STATE_KEY].modelVisibility;
         if (!mv) return;
@@ -297,7 +346,7 @@
                             }
 
                             mv.currentDropdownContainer = likelyDropdown;
-                            log('info', 'Model dropdown detected, applying no-flicker filtering');
+                            logFeature(Feature.ModelVisibility, LogLevel.Info, 'Model dropdown detected, applying no-flicker filtering');
 
                             mvLog('Dropdown detected', {
                                 matchedSelector: selector,
@@ -330,7 +379,7 @@
                                     if (!document.contains(likelyDropdown)) {
                                         cleanupModelVisibilitySession();
                                         mv.currentDropdownContainer = null;
-                                        log('info', 'Model dropdown closed, observer disconnected');
+                                        logFeature(Feature.ModelVisibility, LogLevel.Info, 'Model dropdown closed, observer disconnected');
                                         mvLog('Dropdown removed from DOM; session cleaned up');
                                     }
                                 }, 500);
@@ -346,23 +395,23 @@
 
         observer.observe(document.body, { childList: true, subtree: true });
         mv.dropdownObserver = observer;
-        log('info', 'Model dropdown observer initialized');
+        logFeature(Feature.ModelVisibility, LogLevel.Info, 'Model dropdown observer initialized');
         mvLog('setupModelDropdownObserver complete', { dropdownSelectors });
     };
 
     const clickBtn = () => {
         if (Date.now() - lastClick < COOLDOWN_MS) {
-            log('debug', `${SCRIPT_NAME}: In cooldown.`);
+            logFeature(Feature.Clicker, LogLevel.Debug, 'In cooldown.');
             return;
         }
         const Ctx = (SIDEBAR_SELECTOR ? document.querySelector(SIDEBAR_SELECTOR) : null) ?? document;
-        if (SIDEBAR_SELECTOR && Ctx === document && !document.querySelector(SIDEBAR_SELECTOR)) log('warn', `${SCRIPT_NAME}: Sidebar "${SIDEBAR_SELECTOR}" not found.`);
+        if (SIDEBAR_SELECTOR && Ctx === document && !document.querySelector(SIDEBAR_SELECTOR)) logFeature(Feature.Clicker, LogLevel.Warn, `Sidebar "${SIDEBAR_SELECTOR}" not found.`);
 
         const allPotentialButtons = Array.from(Ctx.querySelectorAll(BTN_SELECTORS));
         if (allPotentialButtons.length === 0) {
-            log('debug', `${SCRIPT_NAME}: No elements found with selector "${BTN_SELECTORS}".`);
+            logFeature(Feature.Clicker, LogLevel.Debug, `No elements found with selector "${BTN_SELECTORS}".`);
         } else {
-            log('debug', `${SCRIPT_NAME}: Found ${allPotentialButtons.length} potential buttons with selector "${BTN_SELECTORS}".`);
+            logFeature(Feature.Clicker, LogLevel.Debug, `Found ${allPotentialButtons.length} potential buttons with selector "${BTN_SELECTORS}".`);
         }
 
 
@@ -380,7 +429,7 @@
                 try {
                     return target.matches({ normalizedText, collapsedText, element: btn });
                 } catch (err) {
-                    log('warn', `Matcher for target "${target.id}" threw`, err);
+                    logFeature(Feature.Clicker, LogLevel.Warn, `Matcher for target "${target.id}" threw`, err);
                     return false;
                 }
             });
@@ -391,12 +440,12 @@
 
             // If it matches text, log why it might not be considered clickable
             if (!isVisibleAndInteractive) {
-                log('debug', `Button "${btn.textContent?.trim()}" matched "${matchingTarget.id}", but was not fully visible/interactive. Details:`);
-                if (!isActuallyVisible) log('debug', `  - Not actually visible (offsetWidth/offsetHeight/getClientRects check failed)`);
-                if (!isNotHidden) log('debug', `  - Visibility was 'hidden'`);
-                if (!isDisplayed) log('debug', `  - Display was 'none'`);
-                if (!isOpaqueEnough) log('debug', `  - Opacity was not > 0 (Value: ${style.opacity})`);
-                if (!isEnabled) log('debug', `  - Button was disabled`);
+                logFeature(Feature.Clicker, LogLevel.Debug, `Button "${btn.textContent?.trim()}" matched "${matchingTarget.id}", but was not fully visible/interactive. Details:`);
+                if (!isActuallyVisible) logFeature(Feature.Clicker, LogLevel.Debug, `  - Not actually visible (offsetWidth/offsetHeight/getClientRects check failed)`);
+                if (!isNotHidden) logFeature(Feature.Clicker, LogLevel.Debug, `  - Visibility was 'hidden'`);
+                if (!isDisplayed) logFeature(Feature.Clicker, LogLevel.Debug, `  - Display was 'none'`);
+                if (!isOpaqueEnough) logFeature(Feature.Clicker, LogLevel.Debug, `  - Opacity was not > 0 (Value: ${style.opacity})`);
+                if (!isEnabled) logFeature(Feature.Clicker, LogLevel.Debug, `  - Button was disabled`);
             }
 
             return isVisibleAndInteractive ? { button: btn, target: matchingTarget } : null;
@@ -407,17 +456,17 @@
             .find(match => !!match);
 
         if (btnMatch) {
-            log('info', `Clicking [${btnMatch.target.id}] "${btnMatch.button.textContent.trim()}"`, btnMatch.button);
+            logFeature(Feature.Clicker, LogLevel.Info, `Clicking [${btnMatch.target.id}] "${btnMatch.button.textContent.trim()}"`, btnMatch.button);
             btnMatch.button.click();
             lastClick = Date.now();
         } else {
             if (allPotentialButtons.length > 0) { // Only log this if we found some candidates but none passed all checks
-                log('debug', `${SCRIPT_NAME}: No suitable button to click this interval.`);
+                logFeature(Feature.Clicker, LogLevel.Debug, 'No suitable button to click this interval.');
             }
         }
 
         // Enable Auto Web Requests dropdown options (remove disabled class)
-        if (!autoWebRequestsUnlocked && ENABLE_AUTO_WEB_REQUESTS) {
+        if (!autoWebRequestsUnlocked && featureEnabled(Feature.AutoWebRequestsUnlock)) {
             const settingRows = document.querySelectorAll('.setting-row');
             for (const row of settingRows) {
                 const label = row.querySelector('.setting-label span');
@@ -426,7 +475,7 @@
                     if (disabledOptions.length > 0) {
                         disabledOptions.forEach(opt => opt.classList.remove('disabled'));
                         autoWebRequestsUnlocked = true;
-                        log('info', 'Unlocked Auto Web Requests dropdown options.');
+                        logFeature(Feature.Settings, LogLevel.Info, 'Unlocked Auto Web Requests dropdown options.');
                     }
                     break;
                 }
@@ -434,7 +483,7 @@
         }
 
         // Enable Auto Execution dropdown options (remove disabled class)
-        if (!autoExecutionUnlocked && ENABLE_AUTO_EXECUTION) {
+        if (!autoExecutionUnlocked && featureEnabled(Feature.AutoExecutionUnlock)) {
             const settingRows = document.querySelectorAll('.setting-row');
             for (const row of settingRows) {
                 const label = row.querySelector('.setting-label span');
@@ -443,7 +492,7 @@
                     if (disabledOptions.length > 0) {
                         disabledOptions.forEach(opt => opt.classList.remove('disabled'));
                         autoExecutionUnlocked = true;
-                        log('info', 'Unlocked Auto Execution dropdown options.');
+                        logFeature(Feature.Settings, LogLevel.Info, 'Unlocked Auto Execution dropdown options.');
                     }
                     break;
                 }
@@ -456,17 +505,17 @@
         if (window[STATE_KEY].intervalId) {
             clearInterval(window[STATE_KEY].intervalId);
             window[STATE_KEY].intervalId = null;
-            log('info', 'Stopped.');
+            logFeature(Feature.Lifecycle, LogLevel.Info, 'Stopped.');
         } else {
-            log('info', 'Not running or already stopped.');
+            logFeature(Feature.Lifecycle, LogLevel.Info, 'Not running or already stopped.');
         }
         cleanupModelVisibilityAll();
     };
 
-    if (ENABLE_MODEL_VISIBILITY) {
+    if (featureEnabled(Feature.ModelVisibility)) {
         setupModelDropdownObserver();
     }
     window[STATE_KEY].intervalId = setInterval(clickBtn, CHECK_MS);
-    log('info', `Started (ID: ${window[STATE_KEY].intervalId}). Checks every ${CHECK_MS/1000}s. To stop: window.stopWindsurfAutoPressContinue_v13_2()`);
+    logFeature(Feature.Lifecycle, LogLevel.Info, `Started (ID: ${window[STATE_KEY].intervalId}). Checks every ${CHECK_MS / 1000}s. To stop: window.stopWindsurfAutoPressContinue_v13_2()`);
     clickBtn(); // Initial check
 })();
