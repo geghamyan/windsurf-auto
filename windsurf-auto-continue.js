@@ -220,11 +220,11 @@
 
         // Control model visibility based on MODEL_VISIBILITY_CONFIG
         if (ENABLE_MODEL_VISIBILITY) {
-            document.querySelectorAll('p').forEach(p => {
-                const text = p.textContent?.trim();
+            document.querySelectorAll('span.truncate').forEach(span => {
+                const text = span.textContent?.trim();
                 if (text && text in MODEL_VISIBILITY_CONFIG) {
                     const shouldBeVisible = MODEL_VISIBILITY_CONFIG[text];
-                    const btn = p.closest('button[data-kb-navigate="true"]') || p.closest('button');
+                    const btn = span.closest('button[data-kb-navigate="true"]') || span.closest('button');
                     if (btn) {
                         if (!shouldBeVisible && btn.style.display !== 'none') {
                             btn.style.display = 'none';
