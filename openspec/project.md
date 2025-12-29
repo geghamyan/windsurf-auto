@@ -33,7 +33,7 @@ Its purpose is to automate repetitive UI actions:
 - Single IIFE wrapper to avoid leaking symbols.
 - Minimal, explicit global surface area:
   - Expose exactly one stop function on `window` (currently `window.stopWindsurfAutoPressContinue_v13_2`).
-  - Store the active interval ID as a property on that function to allow clearing on re-run.
+  - Store the active interval ID and other runtime handles on `window[STATE_KEY]` to allow cleanup on re-run.
 - Configuration-driven behavior:
   - Button matching rules live in `BUTTON_TARGETS` and are predicate-based.
   - DOM queries are centralized via `BTN_SELECTORS`.
@@ -47,7 +47,7 @@ Preferred verification approach is manual:
 
 - Run the snippet in the Windsurf UI context.
 - Confirm only intended buttons are clicked (and only when interactive).
-- Confirm stop/start behavior works and multiple runs do not leak multiple intervals.
+- Confirm stop/start behavior works and multiple runs do not leak multiple intervals/observers.
 - For changes to selectors or matchers, validate against the current Windsurf UI version.
 
 ### Git Workflow
@@ -59,7 +59,7 @@ Preferred verification approach is manual:
 - The script runs inside Windsurf’s embedded web UI; it is not a Node.js program.
 - The UI is subject to change (CSS classnames/selectors can break); selectors may need periodic updates.
 - “Continue” and “RunAlt+⏎” are UI action buttons that can appear/disappear based on Windsurf state.
-- Model entries are rendered as `p` elements within buttons in the model selector.
+- Model entries are rendered as `span.truncate` elements within buttons in the model selector.
 
 ## Important Constraints
 - Do not add heavy tooling unless necessary; keep this repo lightweight.

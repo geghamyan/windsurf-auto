@@ -27,7 +27,35 @@
 (() => {
     const SCRIPT_NAME = 'Windsurf Auto Button Presser';
     const STATE_KEY = '__windsurfAutoButtonPresser__';
-    window[STATE_KEY] ||= { intervalId: null };
+    window[STATE_KEY] ||= { intervalId: null, modelVisibility: null };
+
+    const cleanupModelVisibilitySession = () => {
+        const mv = window[STATE_KEY].modelVisibility;
+        if (!mv) return;
+
+        if (mv.contentObserver) {
+            mv.contentObserver.disconnect();
+            mv.contentObserver = null;
+        }
+        if (mv.removalCheckIntervalId) {
+            clearInterval(mv.removalCheckIntervalId);
+            mv.removalCheckIntervalId = null;
+        }
+
+        mv.currentDropdownContainer = null;
+    };
+
+    const cleanupModelVisibilityAll = () => {
+        const mv = window[STATE_KEY].modelVisibility;
+        if (!mv) return;
+
+        if (mv.dropdownObserver) {
+            mv.dropdownObserver.disconnect();
+            mv.dropdownObserver = null;
+        }
+
+        cleanupModelVisibilitySession();
+    };
 
     if (window[STATE_KEY].intervalId) {
         clearInterval(window[STATE_KEY].intervalId);
@@ -38,6 +66,13 @@
     let lastClick = 0;
     let autoWebRequestsUnlocked = false;
     let autoExecutionUnlocked = false;
+    window[STATE_KEY].modelVisibility ||= {
+        dropdownObserver: null,
+        contentObserver: null,
+        removalCheckIntervalId: null,
+        currentDropdownContainer: null,
+    };
+    cleanupModelVisibilityAll();
 
     // --- Config ---
     const ENABLE_AUTO_WEB_REQUESTS = false; // Set to false to disable unlocking Auto Web Requests dropdown
@@ -74,8 +109,8 @@
         'Claude Sonnet 4.5 (1M)': false,
         'Claude Sonnet 4.5 Thinking': true,
         'Gemini 2.5 Pro': false,
-        'Gemini 3 Pro (high)': false,
-        'Gemini 3 Pro (low)': false,
+        'Gemini 3 Pro High': false,
+        'Gemini 3 Pro Low': false,
         'GPT-4.1': false,
         'GPT-4o': false,
         'GPT-5 (high reasoning)': false,
@@ -83,13 +118,13 @@
         'GPT-5 (low reasoning)': false,
         'GPT-5-Codex': false,
         'GPT-5.1 (high reasoning)': true,
-        'GPT-5.1 (high, priority)': true,
+        'GPT-5.1 (high, priority)': false,
         'GPT-5.1 (medium reasoning)': true,
-        'GPT-5.1 (medium, priority)': true,
+        'GPT-5.1 (medium, priority)': false,
         'GPT-5.1 (low reasoning)': true,
-        'GPT-5.1 (low, priority)': true,
+        'GPT-5.1 (low, priority)': false,
         'GPT-5.1 (no reasoning)': true,
-        'GPT-5.1 (no reasoning, priority)': true,
+        'GPT-5.1 (no reasoning, priority)': false,
         'GPT-5.1-Codex': true,
         'GPT-5.1-Codex Low': true,
         'GPT-5.1-Codex Max High': true,
@@ -117,6 +152,93 @@
     // --- End Config ---
 
     const normalizeText = (rawText) => (rawText ?? "").replace(/[\s\u00A0]+/g, ' ').trim().toLowerCase();
+
+    const applyModelVisibilityFiltering = (container) => {
+        if (!ENABLE_MODEL_VISIBILITY) return;
+
+        const spans = container.querySelectorAll('span.truncate');
+        let hiddenCount = 0;
+        let shownCount = 0;
+
+        spans.forEach(span => {
+            const text = span.textContent?.trim();
+            if (text && text in MODEL_VISIBILITY_CONFIG) {
+                const shouldBeVisible = MODEL_VISIBILITY_CONFIG[text];
+                const btn = span.closest('button[data-kb-navigate="true"]') || span.closest('button');
+                if (btn) {
+                    if (!shouldBeVisible && btn.style.display !== 'none') {
+                        btn.style.display = 'none';
+                        hiddenCount++;
+                    } else if (shouldBeVisible && btn.style.display === 'none') {
+                        btn.style.display = '';
+                        shownCount++;
+                    }
+                }
+            }
+        });
+
+        if (hiddenCount > 0 || shownCount > 0) {
+            console.log(`${SCRIPT_NAME}: Model visibility applied (hidden: ${hiddenCount}, shown: ${shownCount})`);
+        }
+    };
+
+    const setupModelDropdownObserver = () => {
+        if (!ENABLE_MODEL_VISIBILITY) return;
+
+        const mv = window[STATE_KEY].modelVisibility;
+        if (!mv) return;
+
+        const dropdownSelectors = [
+            'div[data-radix-popper-content-wrapper]',
+            '[role="dialog"].radix-popover-content'
+        ];
+
+        const observer = new MutationObserver((mutations) => {
+            for (const mutation of mutations) {
+                for (const node of mutation.addedNodes) {
+                    if (node.nodeType !== Node.ELEMENT_NODE) continue;
+
+                    for (const selector of dropdownSelectors) {
+                        const dropdown = node.matches?.(selector) ? node : node.querySelector?.(selector);
+                        if (dropdown && !mv.currentDropdownContainer) {
+                            mv.currentDropdownContainer = dropdown;
+                            console.log(`${SCRIPT_NAME}: Model dropdown detected, applying no-flicker filtering`);
+
+                            const originalVisibility = dropdown.style.visibility;
+                            dropdown.style.visibility = 'hidden';
+
+                            requestAnimationFrame(() => {
+                                applyModelVisibilityFiltering(dropdown);
+                                dropdown.style.visibility = originalVisibility;
+
+                                cleanupModelVisibilitySession();
+
+                                const contentObserver = new MutationObserver(() => {
+                                    applyModelVisibilityFiltering(dropdown);
+                                });
+                                contentObserver.observe(dropdown, { childList: true, subtree: true });
+                                mv.contentObserver = contentObserver;
+
+                                const checkRemoval = setInterval(() => {
+                                    if (!document.contains(dropdown)) {
+                                        cleanupModelVisibilitySession();
+                                        console.log(`${SCRIPT_NAME}: Model dropdown closed, observer disconnected`);
+                                    }
+                                }, 500);
+                                mv.removalCheckIntervalId = checkRemoval;
+                            });
+
+                            return;
+                        }
+                    }
+                }
+            }
+        });
+
+        observer.observe(document.body, { childList: true, subtree: true });
+        mv.dropdownObserver = observer;
+        console.log(`${SCRIPT_NAME}: Model dropdown observer initialized`);
+    };
 
     const clickBtn = () => {
         if (Date.now() - lastClick < COOLDOWN_MS) {
@@ -218,25 +340,6 @@
             }
         }
 
-        // Control model visibility based on MODEL_VISIBILITY_CONFIG
-        if (ENABLE_MODEL_VISIBILITY) {
-            document.querySelectorAll('span.truncate').forEach(span => {
-                const text = span.textContent?.trim();
-                if (text && text in MODEL_VISIBILITY_CONFIG) {
-                    const shouldBeVisible = MODEL_VISIBILITY_CONFIG[text];
-                    const btn = span.closest('button[data-kb-navigate="true"]') || span.closest('button');
-                    if (btn) {
-                        if (!shouldBeVisible && btn.style.display !== 'none') {
-                            btn.style.display = 'none';
-                            console.log(`${SCRIPT_NAME}: Hid model "${text}"`);
-                        } else if (shouldBeVisible && btn.style.display === 'none') {
-                            btn.style.display = '';
-                            console.log(`${SCRIPT_NAME}: Showed model "${text}"`);
-                        }
-                    }
-                }
-            });
-        }
     };
 
     window.stopWindsurfAutoPressContinue_v13_2 = () => {
@@ -247,8 +350,12 @@
         } else {
             console.log(`${SCRIPT_NAME}: Not running or already stopped.`);
         }
+        cleanupModelVisibilityAll();
     };
 
+    if (ENABLE_MODEL_VISIBILITY) {
+        setupModelDropdownObserver();
+    }
     window[STATE_KEY].intervalId = setInterval(clickBtn, CHECK_MS);
     console.log(`${SCRIPT_NAME}: Started (ID: ${window[STATE_KEY].intervalId}). Checks every ${CHECK_MS/1000}s. To stop: window.stopWindsurfAutoPressContinue_v13_2()`);
     clickBtn(); // Initial check

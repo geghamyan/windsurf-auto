@@ -1,8 +1,5 @@
-# model-visibility Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change configure-model-visibility. Update Purpose after archive.
-## Requirements
 ### Requirement: Configurable model visibility via a single config object
 The automation script SHALL control which models appear in the Windsurf model selector via a single configuration object and a global feature toggle.
 
@@ -50,4 +47,3 @@ The automation script SHALL control which models appear in the Windsurf model se
 - **GIVEN** the script uses an event-driven DOM observer to detect dropdown open and content updates
 - **WHEN** the dropdown closes
 - **THEN** the script SHALL disconnect observers associated with dropdown filtering to avoid background overhead
-
