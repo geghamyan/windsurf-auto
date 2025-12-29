@@ -41,8 +41,6 @@
             clearInterval(mv.removalCheckIntervalId);
             mv.removalCheckIntervalId = null;
         }
-
-        mv.currentDropdownContainer = null;
     };
 
     const cleanupModelVisibilityAll = () => {
@@ -75,9 +73,28 @@
     cleanupModelVisibilityAll();
 
     // --- Config ---
+    const LOG_LEVEL = 'debug';
     const ENABLE_AUTO_WEB_REQUESTS = false; // Set to false to disable unlocking Auto Web Requests dropdown
     const ENABLE_AUTO_EXECUTION = false; // Set to false to disable unlocking Auto Execution dropdown
     const ENABLE_MODEL_VISIBILITY = true; // Set to false to disable model visibility filtering
+    const DEBUG_MODEL_VISIBILITY = true; // Set to true to log detailed model dropdown + filtering diagnostics
+
+    const LOG_LEVELS = {
+        error: 0,
+        warn: 1,
+        info: 2,
+        debug: 3,
+        trace: 4,
+    };
+
+    const log = (level, ...args) => {
+        const current = LOG_LEVELS[LOG_LEVEL] ?? LOG_LEVELS.info;
+        const target = LOG_LEVELS[level] ?? LOG_LEVELS.info;
+        if (target > current) return;
+
+        const method = level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'log';
+        console[method](`${SCRIPT_NAME}:`, ...args);
+    };
 
     const BTN_SELECTORS = 'span[class*="bg-ide-button-secondary-background"], button[class*="bg-ide-button-background"]';
     const BUTTON_TARGETS = [
@@ -153,33 +170,99 @@
 
     const normalizeText = (rawText) => (rawText ?? "").replace(/[\s\u00A0]+/g, ' ').trim().toLowerCase();
 
+    const mvLog = (...args) => {
+        if (!ENABLE_MODEL_VISIBILITY || !DEBUG_MODEL_VISIBILITY) return;
+        log('debug', '[ModelVisibility]', ...args);
+    };
+
     const applyModelVisibilityFiltering = (container) => {
         if (!ENABLE_MODEL_VISIBILITY) return;
 
         const spans = container.querySelectorAll('span.truncate');
         let hiddenCount = 0;
         let shownCount = 0;
+        let configuredModelSpanCount = 0;
+        let missingConfigCount = 0;
+
+        mvLog('applyModelVisibilityFiltering: start', {
+            containerTag: container?.tagName,
+            containerClass: container?.className,
+            spanCount: spans?.length ?? 0,
+            configKeys: Object.keys(MODEL_VISIBILITY_CONFIG).length,
+        });
+
+        if (!spans || spans.length === 0) {
+            mvLog('No spans matched selector "span.truncate" inside dropdown container. Filtering will be a no-op.', {
+                containerSnippet: (container?.outerHTML ?? '').slice(0, 300),
+            });
+            mvLog('Full dropdown HTML (first 5000 chars):', (container?.outerHTML ?? '').slice(0, 5000));
+            mvLog('All text content in dropdown:', container?.textContent?.slice(0, 2000));
+        }
+
+        const sampleTexts = [];
 
         spans.forEach(span => {
             const text = span.textContent?.trim();
+            if (DEBUG_MODEL_VISIBILITY && sampleTexts.length < 15 && text) sampleTexts.push(text);
             if (text && text in MODEL_VISIBILITY_CONFIG) {
+                configuredModelSpanCount++;
                 const shouldBeVisible = MODEL_VISIBILITY_CONFIG[text];
                 const btn = span.closest('button[data-kb-navigate="true"]') || span.closest('button');
                 if (btn) {
                     if (!shouldBeVisible && btn.style.display !== 'none') {
                         btn.style.display = 'none';
                         hiddenCount++;
+                        mvLog('Hid model', { text });
                     } else if (shouldBeVisible && btn.style.display === 'none') {
                         btn.style.display = '';
                         shownCount++;
+                        mvLog('Showed model', { text });
+                    } else {
+                        mvLog('No change for model', {
+                            text,
+                            shouldBeVisible,
+                            currentDisplay: btn.style.display,
+                        });
                     }
                 }
+            } else if (text) {
+                missingConfigCount++;
             }
         });
 
-        if (hiddenCount > 0 || shownCount > 0) {
-            console.log(`${SCRIPT_NAME}: Model visibility applied (hidden: ${hiddenCount}, shown: ${shownCount})`);
+        if (DEBUG_MODEL_VISIBILITY && sampleTexts.length > 0) {
+            mvLog('Model text sample (first 15)', sampleTexts);
         }
+
+        mvLog('applyModelVisibilityFiltering: summary', {
+            hiddenCount,
+            shownCount,
+            configuredModelSpanCount,
+            missingConfigCount,
+        });
+
+        if (hiddenCount > 0 || shownCount > 0) {
+            log('info', `Model visibility applied (hidden: ${hiddenCount}, shown: ${shownCount})`);
+        }
+    };
+
+    const findLikelyModelDropdownContainer = (root) => {
+        if (!root || root.nodeType !== Node.ELEMENT_NODE) return null;
+
+        // Prefer a descendant that actually contains model option rows.
+        // Tooltips and other poppers also use the same wrapper selector.
+        const candidates = [
+            root,
+            ...Array.from(root.querySelectorAll('div[data-radix-popper-content-wrapper], [role="dialog"].radix-popover-content')),
+        ];
+
+        for (const candidate of candidates) {
+            const hasModelTextSpans = candidate.querySelectorAll('span.truncate').length > 0;
+            const hasNavigableButtons = candidate.querySelectorAll('button[data-kb-navigate="true"]').length > 0;
+            if (hasModelTextSpans || hasNavigableButtons) return candidate;
+        }
+
+        return null;
     };
 
     const setupModelDropdownObserver = () => {
@@ -201,28 +284,54 @@
                     for (const selector of dropdownSelectors) {
                         const dropdown = node.matches?.(selector) ? node : node.querySelector?.(selector);
                         if (dropdown && !mv.currentDropdownContainer) {
-                            mv.currentDropdownContainer = dropdown;
-                            console.log(`${SCRIPT_NAME}: Model dropdown detected, applying no-flicker filtering`);
+                            const likelyDropdown = findLikelyModelDropdownContainer(dropdown);
+                            if (!likelyDropdown) {
+                                mvLog('Ignoring popper: does not appear to contain model options (likely tooltip).', {
+                                    matchedSelector: selector,
+                                    rootTag: dropdown?.tagName,
+                                    rootClass: dropdown?.className,
+                                    rootRole: dropdown?.getAttribute?.('role'),
+                                    textPreview: (dropdown?.textContent ?? '').trim().slice(0, 120),
+                                });
+                                continue;
+                            }
 
-                            const originalVisibility = dropdown.style.visibility;
-                            dropdown.style.visibility = 'hidden';
+                            mv.currentDropdownContainer = likelyDropdown;
+                            log('info', 'Model dropdown detected, applying no-flicker filtering');
+
+                            mvLog('Dropdown detected', {
+                                matchedSelector: selector,
+                                dropdownTag: likelyDropdown?.tagName,
+                                dropdownClass: likelyDropdown?.className,
+                                dropdownRole: likelyDropdown?.getAttribute?.('role'),
+                            });
+
+                            const originalVisibility = likelyDropdown.style.visibility;
+                            likelyDropdown.style.visibility = 'hidden';
+                            mvLog('Dropdown visibility temporarily hidden', { originalVisibility });
 
                             requestAnimationFrame(() => {
-                                applyModelVisibilityFiltering(dropdown);
-                                dropdown.style.visibility = originalVisibility;
+                                mvLog('requestAnimationFrame: applying initial filter');
+                                applyModelVisibilityFiltering(likelyDropdown);
+                                likelyDropdown.style.visibility = originalVisibility;
+                                mvLog('Dropdown visibility restored', { restoredVisibility: '' });
 
                                 cleanupModelVisibilitySession();
+                                mvLog('cleanupModelVisibilitySession completed; wiring content observer');
 
                                 const contentObserver = new MutationObserver(() => {
-                                    applyModelVisibilityFiltering(dropdown);
+                                    mvLog('contentObserver: mutation observed; re-applying filter');
+                                    applyModelVisibilityFiltering(likelyDropdown);
                                 });
-                                contentObserver.observe(dropdown, { childList: true, subtree: true });
+                                contentObserver.observe(likelyDropdown, { childList: true, subtree: true });
                                 mv.contentObserver = contentObserver;
 
                                 const checkRemoval = setInterval(() => {
-                                    if (!document.contains(dropdown)) {
+                                    if (!document.contains(likelyDropdown)) {
                                         cleanupModelVisibilitySession();
-                                        console.log(`${SCRIPT_NAME}: Model dropdown closed, observer disconnected`);
+                                        mv.currentDropdownContainer = null;
+                                        log('info', 'Model dropdown closed, observer disconnected');
+                                        mvLog('Dropdown removed from DOM; session cleaned up');
                                     }
                                 }, 500);
                                 mv.removalCheckIntervalId = checkRemoval;
@@ -237,22 +346,23 @@
 
         observer.observe(document.body, { childList: true, subtree: true });
         mv.dropdownObserver = observer;
-        console.log(`${SCRIPT_NAME}: Model dropdown observer initialized`);
+        log('info', 'Model dropdown observer initialized');
+        mvLog('setupModelDropdownObserver complete', { dropdownSelectors });
     };
 
     const clickBtn = () => {
         if (Date.now() - lastClick < COOLDOWN_MS) {
-            // console.log(`${SCRIPT_NAME}: In cooldown.`); // Optional: very verbose
+            log('debug', `${SCRIPT_NAME}: In cooldown.`);
             return;
         }
         const Ctx = (SIDEBAR_SELECTOR ? document.querySelector(SIDEBAR_SELECTOR) : null) ?? document;
-        if (SIDEBAR_SELECTOR && Ctx === document && !document.querySelector(SIDEBAR_SELECTOR)) console.log(`${SCRIPT_NAME}: Sidebar "${SIDEBAR_SELECTOR}" not found.`);
+        if (SIDEBAR_SELECTOR && Ctx === document && !document.querySelector(SIDEBAR_SELECTOR)) log('warn', `${SCRIPT_NAME}: Sidebar "${SIDEBAR_SELECTOR}" not found.`);
 
         const allPotentialButtons = Array.from(Ctx.querySelectorAll(BTN_SELECTORS));
         if (allPotentialButtons.length === 0) {
-            // console.log(`${SCRIPT_NAME}: No elements found with selector "${BTN_SELECTORS}".`); // Optional: can be verbose if it runs often
+            log('debug', `${SCRIPT_NAME}: No elements found with selector "${BTN_SELECTORS}".`);
         } else {
-            // console.log(`${SCRIPT_NAME}: Found ${allPotentialButtons.length} potential buttons with selector "${BTN_SELECTORS}".`); // Optional: can be verbose
+            log('debug', `${SCRIPT_NAME}: Found ${allPotentialButtons.length} potential buttons with selector "${BTN_SELECTORS}".`);
         }
 
 
@@ -270,7 +380,7 @@
                 try {
                     return target.matches({ normalizedText, collapsedText, element: btn });
                 } catch (err) {
-                    console.warn(`${SCRIPT_NAME}: Matcher for target "${target.id}" threw`, err);
+                    log('warn', `Matcher for target "${target.id}" threw`, err);
                     return false;
                 }
             });
@@ -281,12 +391,12 @@
 
             // If it matches text, log why it might not be considered clickable
             if (!isVisibleAndInteractive) {
-                console.log(`${SCRIPT_NAME}: Button "${btn.textContent?.trim()}" matched "${matchingTarget.id}", but was not fully visible/interactive. Details:`);
-                if (!isActuallyVisible) console.log(`  - Not actually visible (offsetWidth/offsetHeight/getClientRects check failed)`);
-                if (!isNotHidden) console.log(`  - Visibility was 'hidden'`);
-                if (!isDisplayed) console.log(`  - Display was 'none'`);
-                if (!isOpaqueEnough) console.log(`  - Opacity was not > 0 (Value: ${style.opacity})`);
-                if (!isEnabled) console.log(`  - Button was disabled`);
+                log('debug', `Button "${btn.textContent?.trim()}" matched "${matchingTarget.id}", but was not fully visible/interactive. Details:`);
+                if (!isActuallyVisible) log('debug', `  - Not actually visible (offsetWidth/offsetHeight/getClientRects check failed)`);
+                if (!isNotHidden) log('debug', `  - Visibility was 'hidden'`);
+                if (!isDisplayed) log('debug', `  - Display was 'none'`);
+                if (!isOpaqueEnough) log('debug', `  - Opacity was not > 0 (Value: ${style.opacity})`);
+                if (!isEnabled) log('debug', `  - Button was disabled`);
             }
 
             return isVisibleAndInteractive ? { button: btn, target: matchingTarget } : null;
@@ -297,12 +407,12 @@
             .find(match => !!match);
 
         if (btnMatch) {
-            console.log(`${SCRIPT_NAME}: Clicking [${btnMatch.target.id}] "${btnMatch.button.textContent.trim()}"`, btnMatch.button);
+            log('info', `Clicking [${btnMatch.target.id}] "${btnMatch.button.textContent.trim()}"`, btnMatch.button);
             btnMatch.button.click();
             lastClick = Date.now();
         } else {
             if (allPotentialButtons.length > 0) { // Only log this if we found some candidates but none passed all checks
-                 // console.log(`${SCRIPT_NAME}: No suitable button to click this interval.`); // Optional: can be verbose
+                log('debug', `${SCRIPT_NAME}: No suitable button to click this interval.`);
             }
         }
 
@@ -316,7 +426,7 @@
                     if (disabledOptions.length > 0) {
                         disabledOptions.forEach(opt => opt.classList.remove('disabled'));
                         autoWebRequestsUnlocked = true;
-                        console.log(`${SCRIPT_NAME}: Unlocked Auto Web Requests dropdown options.`);
+                        log('info', 'Unlocked Auto Web Requests dropdown options.');
                     }
                     break;
                 }
@@ -333,7 +443,7 @@
                     if (disabledOptions.length > 0) {
                         disabledOptions.forEach(opt => opt.classList.remove('disabled'));
                         autoExecutionUnlocked = true;
-                        console.log(`${SCRIPT_NAME}: Unlocked Auto Execution dropdown options.`);
+                        log('info', 'Unlocked Auto Execution dropdown options.');
                     }
                     break;
                 }
@@ -346,9 +456,9 @@
         if (window[STATE_KEY].intervalId) {
             clearInterval(window[STATE_KEY].intervalId);
             window[STATE_KEY].intervalId = null;
-            console.log(`${SCRIPT_NAME}: Stopped.`);
+            log('info', 'Stopped.');
         } else {
-            console.log(`${SCRIPT_NAME}: Not running or already stopped.`);
+            log('info', 'Not running or already stopped.');
         }
         cleanupModelVisibilityAll();
     };
@@ -357,6 +467,6 @@
         setupModelDropdownObserver();
     }
     window[STATE_KEY].intervalId = setInterval(clickBtn, CHECK_MS);
-    console.log(`${SCRIPT_NAME}: Started (ID: ${window[STATE_KEY].intervalId}). Checks every ${CHECK_MS/1000}s. To stop: window.stopWindsurfAutoPressContinue_v13_2()`);
+    log('info', `Started (ID: ${window[STATE_KEY].intervalId}). Checks every ${CHECK_MS/1000}s. To stop: window.stopWindsurfAutoPressContinue_v13_2()`);
     clickBtn(); // Initial check
 })();
