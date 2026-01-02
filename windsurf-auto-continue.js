@@ -104,7 +104,7 @@
 
     const LOG_LEVEL = LogLevel.Info;
     const FEATURE_CONFIG = {
-        [Feature.ModelVisibility]: { enabled: true, level: LogLevel.Debug },
+        [Feature.ModelVisibility]: { enabled: true, level: LogLevel.Info },
         [Feature.AutoWebRequestsUnlock]: { enabled: false, level: LogLevel.Info },
         [Feature.AutoExecutionUnlock]: { enabled: false, level: LogLevel.Info },
     };
@@ -198,13 +198,13 @@
         'GPT-5.1-Codex-Mini': true,
         'GPT-5.1-Codex-Mini Low': true,
         'GPT-5.2 High Reasoning': true,
-        'GPT-5.2 High Reasoning Fast': true,
+        'GPT-5.2 High Reasoning Fast': false,
         'GPT-5.2 Medium Reasoning': true,
-        'GPT-5.2 Medium Reasoning Fast': true,
+        'GPT-5.2 Medium Reasoning Fast': false,
         'GPT-5.2 Low Reasoning': true,
-        'GPT-5.2 Low Reasoning Fast': true,
+        'GPT-5.2 Low Reasoning Fast': false,
         'GPT-5.2 No Reasoning': true,
-        'GPT-5.2 No Reasoning Fast': true,
+        'GPT-5.2 No Reasoning Fast': false,
         'GPT-5.2 X-High Reasoning': false,
         'GPT-5.2 X-High Reasoning Fast': false,
         'GPT-OSS 120B (Medium)': false,
