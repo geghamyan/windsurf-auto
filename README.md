@@ -3,6 +3,8 @@ Windsurf Auto Button Presser
 
 Automation helper for the Windsurf desktop UI. It watches for key actions and clicks them for you—no synthetic key events required.
 
+Based on code from https://gist.github.com/steipete/799f4f7a6ed6e96a02a5539d4a03b5b7 (v13.2).
+
 ## Features
 - Auto-presses the main **Continue** button (text begins with "continue").
 - Auto-presses the **RunAlt+⏎** run button.
