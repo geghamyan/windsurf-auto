@@ -168,7 +168,7 @@
         'GPT-5.2 Low Reasoning Fast': false,
         'GPT-5.2 No Reasoning': true,
         'GPT-5.2 No Reasoning Fast': false,
-        'GPT-5.2 X-High Reasoning': false,
+        'GPT-5.2 X-High Reasoning': true,
         'GPT-5.2 X-High Reasoning Fast': false,
         'GPT-5.2-Codex High': true,
         'GPT-5.2-Codex High Fast': false,
