@@ -8,10 +8,18 @@ Based on code from https://gist.github.com/steipete/799f4f7a6ed6e96a02a5539d4a03
 ## Features
 - Auto-presses the main **Continue** button (text begins with "continue").
 - Auto-presses the **RunAlt+⏎** run button.
-- Optional unlocks for disabled dropdown options in **Auto Web Requests** and **Auto Execution** settings.
 - Optional model filtering for the selector (show/hide models via `MODEL_VISIBILITY_CONFIG`).
 
 ## Quick start
+1) Press `Ctrl+Shift+P` (or `Cmd+Shift+P` on Mac).
+2) Search for and select `Developer: Toggle Developer Tools`.
+3) Go to the **Sources** tab, then the **Snippets** panel.
+4) Create a new snippet and paste the contents of `windsurf-auto-continue.js`.
+5) Right-click on the snippet and select **Run**.
+
+*Note: You need to run the snippet every time a new Windsurf window is opened.*
+
+**Alternative (Console):**
 1) Open the Windsurf desktop app, launch DevTools, and paste the contents of `windsurf-auto-continue.js` into the console.
 2) The script starts immediately and runs every second by default.
 3) To stop it, run: `window.stopWindsurfAutoPressContinue_v13_2()`.
@@ -39,8 +47,6 @@ const FEATURE_CONFIG = {
 
 ## Examples
 - Disable model filtering entirely: `{ enabled: false, level: LogLevel.Info }` for `Feature.ModelVisibility`.
-- Enable Auto Web Requests unlock with verbose logs: `{ enabled: true, level: LogLevel.Debug }` for `Feature.AutoWebRequestsUnlock`.
-- Keep Auto Execution unlock off but quiet: `{ enabled: false, level: LogLevel.Error }` for `Feature.AutoExecutionUnlock`.
 
 ## Logging tips
 - `LOG_LEVEL` is the fallback when a feature is missing from `FEATURE_CONFIG`.
