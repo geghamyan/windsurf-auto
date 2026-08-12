@@ -55,6 +55,9 @@
         ModelVisibility: 'modelVisibility',
         AutoWebRequestsUnlock: 'autoWebRequestsUnlock',
         AutoExecutionUnlock: 'autoExecutionUnlock',
+        AutoAllow: 'autoAllow',
+        AutoContinue: 'autoContinue',
+        AutoRunAltEnter: 'autoRunAltEnter',
     });
 
     const LogLevel = Object.freeze({
@@ -70,6 +73,9 @@
         [Feature.ModelVisibility]: { enabled: true, level: LogLevel.Info },
         [Feature.AutoWebRequestsUnlock]: { enabled: false, level: LogLevel.Info },
         [Feature.AutoExecutionUnlock]: { enabled: false, level: LogLevel.Info },
+        [Feature.AutoAllow]: { enabled: true, level: LogLevel.Info },
+        [Feature.AutoContinue]: { enabled: false, level: LogLevel.Info },
+        [Feature.AutoRunAltEnter]: { enabled: true, level: LogLevel.Info },
     };
 
     const LOG_LEVELS = {
@@ -111,13 +117,21 @@
     const BUTTON_TARGETS = [
         {
             id: 'continue',
+            feature: Feature.AutoContinue,
             description: 'Auto-press main Continue button (text begins with "continue").',
             matches: ({ normalizedText }) => normalizedText.startsWith('continue'),
         },
         {
             id: 'run-alt-enter',
+            feature: Feature.AutoRunAltEnter,
             description: 'Auto-press Run button that shows "RunAlt+⏎" (Run Alt+Enter shortcut).',
             matches: ({ collapsedText }) => collapsedText.includes('runalt+⏎'),
+        },
+        {
+            id: 'allow',
+            feature: Feature.AutoAllow,
+            description: 'Auto-press Allow button on command execution approval cards.',
+            matches: ({ normalizedText }) => normalizedText.startsWith('allow'),
         },
     ];
     const SIDEBAR_SELECTOR = null;
@@ -399,6 +413,11 @@
             });
 
             if (!matchingTarget) return null;
+
+            if (matchingTarget.feature && !featureEnabled(matchingTarget.feature)) {
+                logFeature(Feature.Clicker, LogLevel.Debug, `Button "${btn.textContent?.trim()}" matched "${matchingTarget.id}", but feature "${matchingTarget.feature}" is disabled.`);
+                return null;
+            }
 
             const isVisibleAndInteractive = isActuallyVisible && isNotHidden && isDisplayed && isOpaqueEnough && isEnabled;
 
