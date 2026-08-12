@@ -36,7 +36,6 @@
     }
 
     let lastClick = 0;
-    let autoWebRequestsUnlocked = false;
     let autoExecutionUnlocked = false;
     window[STATE_KEY].modelVisibility ||= {
         dropdownObserver: null,
@@ -53,7 +52,6 @@
         Settings: 'settings',
         Lifecycle: 'lifecycle',
         ModelVisibility: 'modelVisibility',
-        AutoWebRequestsUnlock: 'autoWebRequestsUnlock',
         AutoExecutionUnlock: 'autoExecutionUnlock',
         AutoAllow: 'autoAllow',
         AutoContinue: 'autoContinue',
@@ -71,7 +69,6 @@
     const LOG_LEVEL = LogLevel.Info;
     const FEATURE_CONFIG = {
         [Feature.ModelVisibility]: { enabled: true, level: LogLevel.Info },
-        [Feature.AutoWebRequestsUnlock]: { enabled: false, level: LogLevel.Info },
         [Feature.AutoExecutionUnlock]: { enabled: false, level: LogLevel.Info },
         [Feature.AutoAllow]: { enabled: true, level: LogLevel.Info },
         [Feature.AutoContinue]: { enabled: false, level: LogLevel.Info },
@@ -445,23 +442,6 @@
         } else {
             if (allPotentialButtons.length > 0) { // Only log this if we found some candidates but none passed all checks
                 logFeature(Feature.Clicker, LogLevel.Debug, 'No suitable button to click this interval.');
-            }
-        }
-
-        // Enable Auto Web Requests dropdown options (remove disabled class)
-        if (!autoWebRequestsUnlocked && featureEnabled(Feature.AutoWebRequestsUnlock)) {
-            const settingRows = document.querySelectorAll('.setting-row');
-            for (const row of settingRows) {
-                const label = row.querySelector('.setting-label span');
-                if (label && label.textContent?.trim() === 'Auto Web Requests') {
-                    const disabledOptions = row.querySelectorAll('.setting-dropdown-option.disabled');
-                    if (disabledOptions.length > 0) {
-                        disabledOptions.forEach(opt => opt.classList.remove('disabled'));
-                        autoWebRequestsUnlocked = true;
-                        logFeature(Feature.Settings, LogLevel.Info, 'Unlocked Auto Web Requests dropdown options.');
-                    }
-                    break;
-                }
             }
         }
 
