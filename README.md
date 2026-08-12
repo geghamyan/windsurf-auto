@@ -8,6 +8,7 @@ Based on code from https://gist.github.com/steipete/799f4f7a6ed6e96a02a5539d4a03
 ## Features
 - Auto-presses the main **Continue** button (text begins with "continue").
 - Auto-presses the **RunAlt+⏎** run button.
+- Auto-presses the **Allow** button on command execution approval cards.
 - Optional model filtering for the selector (show/hide models via `MODEL_VISIBILITY_CONFIG`).
 
 ## Quick start
@@ -25,9 +26,9 @@ Based on code from https://gist.github.com/steipete/799f4f7a6ed6e96a02a5539d4a03
 3) To stop it, run: `window.stopWindsurfAutoPressContinue_v13_2()`.
 
 ## Configuration (in `windsurf-auto-continue.js`)
-- `Feature`: enum of feature names (ModelVisibility, Clicker, Settings, Lifecycle, AutoWebRequestsUnlock, AutoExecutionUnlock).
+- `Feature`: enum of feature names (`ModelVisibility`, `Clicker`, `Settings`, `Lifecycle`, `AutoExecutionUnlock`, `AutoAllow`, `AutoContinue`, `AutoRunAltEnter`).
 - `LogLevel`: enum of log levels (Error, Warn, Info, Debug, Trace).
-- `BUTTON_TARGETS` / `BTN_SELECTORS`: buttons to consider for auto-click.
+- `BUTTON_TARGETS` / `BTN_SELECTORS`: buttons to consider for auto-click; each target declares a `feature` for per-target toggles.
 - `COOLDOWN_MS` / `CHECK_MS`: click cooldown and poll interval.
 - `MODEL_VISIBILITY_CONFIG`: which models to show/hide in the selector.
 
@@ -36,9 +37,11 @@ Use per-feature `{ enabled, level }` entries to control behavior and log noise:
 
 ```js
 const FEATURE_CONFIG = {
-  [Feature.ModelVisibility]:      { enabled: true,  level: LogLevel.Info },
-  [Feature.AutoWebRequestsUnlock]:{ enabled: false, level: LogLevel.Info },
-  [Feature.AutoExecutionUnlock]:  { enabled: false, level: LogLevel.Info },
+  [Feature.ModelVisibility]:     { enabled: true,  level: LogLevel.Info },
+  [Feature.AutoExecutionUnlock]:   { enabled: false, level: LogLevel.Info },
+  [Feature.AutoAllow]:             { enabled: true,  level: LogLevel.Info },
+  [Feature.AutoContinue]:          { enabled: false, level: LogLevel.Info },
+  [Feature.AutoRunAltEnter]:       { enabled: true,  level: LogLevel.Info },
 };
 ```
 
@@ -47,6 +50,8 @@ const FEATURE_CONFIG = {
 
 ## Examples
 - Disable model filtering entirely: `{ enabled: false, level: LogLevel.Info }` for `Feature.ModelVisibility`.
+- Enable auto-clicking the **Allow** button: `{ enabled: true, level: LogLevel.Info }` for `Feature.AutoAllow`.
+- Enable auto-clicking the **Continue** button: `{ enabled: true, level: LogLevel.Info }` for `Feature.AutoContinue`.
 
 ## Logging tips
 - `LOG_LEVEL` is the fallback when a feature is missing from `FEATURE_CONFIG`.
@@ -54,5 +59,5 @@ const FEATURE_CONFIG = {
 
 ## Maintenance
 - If Windsurf UI/CSS changes, revisit `BTN_SELECTORS` and settings row selectors.
-- Add new button behaviors by extending `BUTTON_TARGETS` and reusing `evaluateButton` visibility checks.
+- Add new button behaviors by extending `BUTTON_TARGETS` with a `feature` property and reusing `evaluateButton` visibility checks.
 - Project conventions live in `openspec/project.md`.
